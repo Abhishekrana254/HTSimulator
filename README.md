@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hair Transplant Simulator (MVP)
 
-## Getting Started
+A browser-based tool for hair transplant consultations:
 
-First, run the development server:
+1. **Photos** – upload front (required), top, back/crown, left and right profile photos.
+2. **Graft plan** – pick the Norwood stage and graft count, then split grafts across the hairline/frontal, mid-scalp and crown regions. Shows estimated density (grafts/cm²) per region against typical targets.
+3. **Hairline design** – shape each treatment zone on every photo. Use the hairline templates (rounded, straight, widow's peak, mature), drag the handles, set the hair direction and how soft the edge is, and pick the hair colour from the photo.
+4. **Results** – before/after slider, growth timeline (3 / 6 / 9 / 12+ months), new random variations, and PNG export of a side-by-side comparison.
+
+All processing happens in the browser. Photos are never uploaded, so the app can be hosted as a static site with no backend.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run build    # production build
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Deploy: push to GitHub and import the repo in Vercel (no environment variables needed).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How the simulation works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `lib/planning.ts` – Norwood area estimates, graft allocation, density and rating maths.
+- `lib/render.ts` – procedural hair renderer. The number of strands in each zone comes from the region's density × the zone's area (assuming the photo spans about 30 cm, adjustable with the per-view "Hair scale"). Edges are feathered irregularly, edge hairs are finer, frontal hair fans outward and crown hair grows in a whorl, and the scalp under the strands is tinted.
+- `lib/geometry.ts` – smooth closed curves (Catmull-Rom splines), hit-testing and area.
+- `components/` – wizard steps, the SVG zone editor and the before/after viewer.
 
-## Learn More
+## Known MVP limitations / next steps
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Zones are placed manually; automatic face and scalp landmark detection (e.g. MediaPipe Face Mesh) could place the hairline automatically.
+- The same region drawn on several photos is styled separately for each photo.
+- The rendering is procedural, not AI-generated. A diffusion inpainting pass could make results photorealistic.
+- No saving or accounts yet; refreshing the page clears the session.
+- HEIC photos only work in browsers that can decode them (Safari).

@@ -1,102 +1,68 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import { SimulatorProvider, useSimulator } from "@/components/SimulatorProvider";
+import { StepDesign } from "@/components/StepDesign";
+import { StepPhotos } from "@/components/StepPhotos";
+import { StepPlan } from "@/components/StepPlan";
+import { StepResults } from "@/components/StepResults";
+import { Stepper } from "@/components/Stepper";
+import { releasePhoto } from "@/lib/image";
+import type { ViewId } from "@/lib/types";
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <SimulatorProvider>
+      <Wizard />
+    </SimulatorProvider>
+  );
+}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+function Wizard() {
+  const { state, dispatch } = useSimulator();
+  const [step, setStep] = useState(0);
+  const [maxReached, setMaxReached] = useState(0);
+
+  const go = (s: number) => {
+    setStep(s);
+    setMaxReached((m) => Math.max(m, s));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  function restart() {
+    for (const [view, photo] of Object.entries(state.photos)) {
+      if (photo) releasePhoto(photo);
+      dispatch({ type: "setPhoto", view: view as ViewId, photo: undefined });
+    }
+    dispatch({ type: "resetAllDesigns" });
+    setMaxReached(0);
+    go(0);
+  }
+
+  // Later steps need the front photo; fall back to step 1 if it was removed.
+  const current = state.photos.front ? step : 0;
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Hair Transplant <span className="text-teal-600">Simulator</span>
+          </h1>
+          <p className="text-sm text-slate-500">Plan grafts, design a hairline, preview the result.</p>
         </div>
+        <Stepper step={current} maxReached={state.photos.front ? maxReached : 0} onSelect={go} />
+      </header>
+
+      <main>
+        {current === 0 && <StepPhotos onNext={() => go(1)} />}
+        {current === 1 && <StepPlan onBack={() => go(0)} onNext={() => go(2)} />}
+        {current === 2 && <StepDesign onBack={() => go(1)} onNext={() => go(3)} />}
+        {current === 3 && <StepResults onBack={() => go(2)} onRestart={restart} />}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      <footer className="mt-12 border-t border-slate-200 pt-6 text-xs text-slate-400">
+        For consultation and illustration purposes only. Not a medical device. Photos are processed locally in your browser.
       </footer>
     </div>
   );
