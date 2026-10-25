@@ -1,9 +1,10 @@
-import type { Frame, PhotoAsset } from "./types";
+import { analyseScalp } from "./detect";
+import type { Frame, PhotoAsset, ViewId } from "./types";
 
 const MAX_SIDE = 1600;
 
 /** Decodes a user photo (respecting EXIF orientation) and downscales it for fast rendering. */
-export async function loadPhoto(file: File): Promise<PhotoAsset> {
+export async function loadPhoto(file: File, view: ViewId): Promise<PhotoAsset> {
   if (!file.type.startsWith("image/")) throw new Error("Please choose an image file.");
   let bitmap: ImageBitmap;
   try {
@@ -20,11 +21,19 @@ export async function loadPhoto(file: File): Promise<PhotoAsset> {
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0, width, height);
   const foreground = estimateForeground(ctx, width, height);
+  const analysis = analyseScalp(canvas, width, height, view);
   bitmap.close();
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not process image."))), "image/jpeg", 0.92),
   );
-  return { url: URL.createObjectURL(blob), width, height, name: file.name, foreground };
+  return {
+    url: URL.createObjectURL(blob),
+    width,
+    height,
+    name: file.name,
+    foreground,
+    suggestedColor: analysis.hairColor,
+  };
 }
 
 /**

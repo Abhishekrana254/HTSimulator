@@ -15,6 +15,15 @@ export type PhotoAsset = {
   name: string;
   /** Foreground bounds. Absent when the subject could not be separated from the background. */
   foreground?: Frame;
+  /**
+   * Thin or bald scalp found on this photo. An empty list means the scan ran
+   * and found nothing, so the template hairline is not forced onto the face.
+   */
+  detected?: Zone[];
+  /** Median colour of the hair already in the photo. */
+  suggestedColor?: string;
+  /** Set when the vision model could not trace this photo. */
+  traceNote?: string;
 };
 
 export type Zone = {
@@ -47,6 +56,8 @@ export type Plan = {
   /** Share of grafts per region, in percent (sums to 100). */
   allocation: Record<RegionId, number>;
   hairColor: string;
+  /** False once someone picks a colour by hand. Until then, new photos update it. */
+  hairFromPhoto: boolean;
   hairLength: HairLength;
 };
 

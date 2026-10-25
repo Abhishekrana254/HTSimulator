@@ -1,15 +1,37 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { tracePhoto } from "@/lib/aiZones";
 import { VIEWS } from "@/lib/defaults";
 import { loadPhoto, releasePhoto } from "@/lib/image";
-import type { ViewId } from "@/lib/types";
+import type { ViewId, Zone } from "@/lib/types";
 import { useSimulator } from "./SimulatorProvider";
 import { Button, Card } from "./ui";
 
 export function StepPhotos({ onNext }: { onNext: () => void }) {
-  const { state } = useSimulator();
+  const { state, dispatch } = useSimulator();
   const count = Object.values(state.photos).filter(Boolean).length;
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string>();
+
+  async function next() {
+    setReading(true);
+    setReadError(undefined);
+    try {
+      const detected: Partial<Record<ViewId, Zone[]>> = {};
+      for (const view of VIEWS) {
+        const photo = state.photos[view.id];
+        if (!photo) continue;
+        detected[view.id] = await tracePhoto(photo, view.id);
+      }
+      dispatch({ type: "applyTraces", detected });
+      onNext();
+    } catch (error) {
+      setReadError(error instanceof Error ? error.message : "Could not read the hairline.");
+    } finally {
+      setReading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -17,7 +39,7 @@ export function StepPhotos({ onNext }: { onNext: () => void }) {
         <h2 className="text-xl font-semibold">Upload scalp photos</h2>
         <p className="mt-1 text-sm text-slate-600">
           Add the front view plus as many other angles as you have. Use even lighting, keep hair dry and pushed back from the hairline.
-          Photos stay in your browser and are never uploaded.
+          Nothing is sent until you press Next. That reads the hairline and estimates the grafts from the photos.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -27,10 +49,11 @@ export function StepPhotos({ onNext }: { onNext: () => void }) {
       </div>
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-500">{count} of {VIEWS.length} photos added</span>
-        <Button onClick={onNext} disabled={!state.photos.front}>
-          Continue to graft plan →
+        <Button onClick={next} disabled={!state.photos.front || reading}>
+          {reading ? "Reading the hairline…" : "Continue to graft plan →"}
         </Button>
       </div>
+      {readError && <p className="text-sm text-red-600">{readError}</p>}
     </div>
   );
 }
@@ -48,7 +71,7 @@ function PhotoSlot({ view, label, tip, required }: { view: ViewId; label: string
     setError(undefined);
     setBusy(true);
     try {
-      const next = await loadPhoto(file);
+      const next = await loadPhoto(file, view);
       if (photo) releasePhoto(photo);
       dispatch({ type: "setPhoto", view, photo: next });
     } catch (e) {
@@ -97,7 +120,7 @@ function PhotoSlot({ view, label, tip, required }: { view: ViewId; label: string
           <img src={photo.url} alt={`${label} photo`} className="h-full w-full object-contain" />
         ) : (
           <span className="px-4 text-center text-sm text-slate-500">
-            {busy ? "Processing…" : (
+            {busy ? "Reading photo…" : (
               <>
                 <span className="block font-medium text-slate-700">Drop photo or click to upload</span>
                 <span className="mt-1 block text-xs">{tip}</span>
@@ -107,6 +130,7 @@ function PhotoSlot({ view, label, tip, required }: { view: ViewId; label: string
         )}
       </button>
       {photo && <p className="truncate text-xs text-slate-500">{photo.name} · click image to replace</p>}
+      {photo?.traceNote && <p className="text-xs text-amber-700">{photo.traceNote}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
       <input
         ref={input}

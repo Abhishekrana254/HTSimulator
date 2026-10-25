@@ -70,6 +70,19 @@ function fit(points: Point[], box?: Frame): Point[] {
   return points.map((p) => ({ x: clamp(box.x + p.x * box.w), y: clamp(box.y + p.y * box.h) }));
 }
 
+/**
+ * Zones for one photo. A finished scan (including an empty one) wins over the
+ * generic template, so a full hairline is not covered with a forehead band.
+ * Detected zones are kept even when the graft plan has not opened that region yet.
+ */
+export function designFor(view: ViewId, _areas: Record<RegionId, number>, photo?: PhotoAsset): ViewDesign {
+  if (photo?.detected) {
+    const zones = photo.detected.map((z) => ({ ...z, points: z.points.map((p) => ({ ...p })) }));
+    return { zones, scale: 1 };
+  }
+  return defaultDesign(view, _areas, photo?.foreground);
+}
+
 /** Starting zones for a view, based on which regions the plan treats. */
 export function defaultDesign(view: ViewId, areas: Record<RegionId, number>, foreground?: Frame): ViewDesign {
   const has = (r: RegionId) => areas[r] > 0;
@@ -102,11 +115,11 @@ export function defaultDesigns(
   photos: Partial<Record<ViewId, PhotoAsset>> = {},
 ): Record<ViewId, ViewDesign> {
   return {
-    front: defaultDesign("front", areas, photos.front?.foreground),
-    top: defaultDesign("top", areas, photos.top?.foreground),
-    back: defaultDesign("back", areas, photos.back?.foreground),
-    left: defaultDesign("left", areas, photos.left?.foreground),
-    right: defaultDesign("right", areas, photos.right?.foreground),
+    front: designFor("front", areas, photos.front),
+    top: designFor("top", areas, photos.top),
+    back: designFor("back", areas, photos.back),
+    left: designFor("left", areas, photos.left),
+    right: designFor("right", areas, photos.right),
   };
 }
 
@@ -119,6 +132,7 @@ export function defaultPlan(): Plan {
     areas,
     allocation: defaultAllocation(areas),
     hairColor: "#3b2a20",
+    hairFromPhoto: true,
     hairLength: "medium",
   };
 }

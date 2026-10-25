@@ -62,7 +62,7 @@ function Wizard() {
       </main>
 
       <footer className="mt-12 border-t border-slate-200 pt-6 text-xs text-slate-400">
-        For consultation and illustration purposes only. Not a medical device. Photos are processed locally in your browser.
+        For consultation and illustration purposes only. Not a medical device. Next reads the hairline from the photos. Simulate results sends them once and saves every month on this page.
       </footer>
     </div>
   );

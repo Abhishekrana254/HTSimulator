@@ -144,17 +144,21 @@ export function StepPlan({ onBack, onNext }: { onBack: () => void; onNext: () =>
                 <button
                   key={c.value}
                   title={c.name}
-                  onClick={() => update({ hairColor: c.value })}
+                  onClick={() => update({ hairColor: c.value, hairFromPhoto: false })}
                   className={`h-8 w-8 rounded-full border-2 ${plan.hairColor === c.value ? "border-teal-600 ring-2 ring-teal-200" : "border-white shadow"}`}
                   style={{ background: c.value }}
                 />
               ))}
               <label className="ml-2 flex items-center gap-2 text-sm text-slate-600">
                 Custom
-                <input type="color" value={plan.hairColor} onChange={(e) => update({ hairColor: e.target.value })} className="h-8 w-10 cursor-pointer" />
+                <input type="color" value={plan.hairColor} onChange={(e) => update({ hairColor: e.target.value, hairFromPhoto: false })} className="h-8 w-10 cursor-pointer" />
               </label>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Tip: you can also pick the colour straight from the photo in the next step.</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {plan.hairFromPhoto
+                ? "Colour is taken from the hair in the uploaded photo. Pick a swatch to override it."
+                : "Tip: you can also pick the colour straight from the photo in the next step."}
+            </p>
             <div className="mt-4">
               <Segmented<HairLength>
                 options={[

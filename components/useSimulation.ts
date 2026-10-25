@@ -42,6 +42,7 @@ export function useSimulation(
         growth: enabled ? stage.growth : 0,
         lengthFactor: stage.length,
         seed,
+        matchPhoto: plan.hairFromPhoto,
       });
       setRendering(false);
     }, delay);
