@@ -1,12 +1,19 @@
 import { newId } from "./defaults";
-import { falTraceZones } from "./fal";
 import { getImage } from "./image";
-import type { PhotoAsset, ViewId, Zone } from "./types";
+import type { PhotoAsset, RegionId, ViewId, Zone } from "./types";
 
-/** Asks fal to trace thinning scalp on this photo. The photo goes straight from the browser. */
+type RawZone = { region: RegionId; points: { x: number; y: number }[]; angle: number; softness: number };
+
+/** Asks the site server to trace thinning scalp. The photo is not sent until Next. */
 export async function traceZones(image: string, view: ViewId): Promise<Zone[]> {
-  const zones = await falTraceZones(image, view);
-  return zones.map((zone) => ({ ...zone, id: newId(), points: zone.points.map((point) => ({ ...point })) }));
+  const res = await fetch("/api/zones", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image, view }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { zones?: RawZone[]; error?: string };
+  if (!res.ok || !json.zones) throw new Error(json.error || "Could not trace the hairline");
+  return json.zones.map((zone) => ({ ...zone, id: newId(), points: zone.points.map((point) => ({ ...point })) }));
 }
 
 export async function tracePhoto(photo: PhotoAsset, view: ViewId): Promise<Zone[]> {

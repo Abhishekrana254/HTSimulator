@@ -1,9 +1,19 @@
-import { falEditHair } from "./fal";
 import { smoothClosedCurve } from "./geometry";
 import { getImage } from "./image";
 import type { PhotoAsset, ViewDesign } from "./types";
 
 const MAX_SIDE = 1024;
+
+async function editHair(image: string, mask: string, months: number, color?: string, grafts?: number) {
+  const res = await fetch("/api/edit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image, mask, months, color, grafts }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { image?: string; error?: string };
+  if (!res.ok || !json.image) throw new Error(json.error || "The hair model failed");
+  return json.image;
+}
 
 /** Share of the new hair that stays visible. The rest of the zone keeps the original scalp. */
 function newHairAmount(months: number) {
@@ -72,7 +82,7 @@ export async function naturalHair(
   if (!design.zones.length) throw new Error("No hairline on this photo yet.");
   const base = await photoCanvas(photo);
   const mask = zoneMask(design, base.width, base.height);
-  const edited = await falEditHair(base.toDataURL("image/jpeg", 0.92), mask.toDataURL("image/png"), months, color, grafts);
+  const edited = await editHair(base.toDataURL("image/jpeg", 0.92), mask.toDataURL("image/png"), months, color, grafts);
   return pasteInsideZone(base, mask, edited, newHairAmount(months));
 }
 

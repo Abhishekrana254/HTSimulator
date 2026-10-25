@@ -6,7 +6,7 @@ const EDIT_ENDPOINT = "https://fal.run/openai/gpt-image-2.5/sunburst/edit";
 type RawZone = { region: RegionId; points: { x: number; y: number }[]; angle: number; softness: number };
 
 function falKey() {
-  const key = process.env.NEXT_PUBLIC_FAL_KEY?.trim();
+  const key = process.env.FAL_KEY?.trim();
   if (!key) throw new Error("The hair model key is missing from this site.");
   return key;
 }
