@@ -1,5 +1,5 @@
 import { defaultAllocation, NORWOOD } from "./planning";
-import type { Plan, Point, RegionId, ViewDesign, ViewId, Zone } from "./types";
+import type { Frame, PhotoAsset, Plan, Point, RegionId, ViewDesign, ViewId, Zone } from "./types";
 
 export const VIEWS: { id: ViewId; label: string; tip: string; required?: boolean }[] = [
   { id: "front", label: "Front", tip: "Face the camera at eye level, hair pulled back off the forehead.", required: true },
@@ -53,39 +53,60 @@ function zone(region: RegionId, points: Point[], angle: number): Zone {
   return { id: newId(), region, points, angle, softness: 0.025 };
 }
 
+/**
+ * Templates are drawn as if the head fills the frame. Portrait photos also
+ * include shoulders, so those views use only the top of the foreground
+ * (about one head-height). A top-down photo is all scalp, so it uses the full box.
+ */
+function subjectBox(view: ViewId, foreground?: Frame): Frame | undefined {
+  if (!foreground) return undefined;
+  if (view === "top") return foreground;
+  return { x: foreground.x, y: foreground.y, w: foreground.w, h: Math.min(foreground.h, foreground.w * 1.35) };
+}
+
+function fit(points: Point[], box?: Frame): Point[] {
+  if (!box) return points;
+  const clamp = (v: number) => Math.min(0.98, Math.max(0.02, v));
+  return points.map((p) => ({ x: clamp(box.x + p.x * box.w), y: clamp(box.y + p.y * box.h) }));
+}
+
 /** Starting zones for a view, based on which regions the plan treats. */
-export function defaultDesign(view: ViewId, areas: Record<RegionId, number>): ViewDesign {
+export function defaultDesign(view: ViewId, areas: Record<RegionId, number>, foreground?: Frame): ViewDesign {
   const has = (r: RegionId) => areas[r] > 0;
+  const box = subjectBox(view, foreground);
   const zones: Zone[] = [];
   switch (view) {
     case "front":
-      if (has("frontal")) zones.push(zone("frontal", frontHairlinePoints("rounded"), 90));
+      if (has("frontal")) zones.push(zone("frontal", fit(frontHairlinePoints("rounded"), box), 90));
       break;
     case "top":
-      if (has("frontal")) zones.push(zone("frontal", ellipse(0.5, 0.27, 0.2, 0.11), -90));
-      if (has("mid")) zones.push(zone("mid", ellipse(0.5, 0.47, 0.17, 0.1), -90));
-      if (has("crown")) zones.push(zone("crown", ellipse(0.5, 0.7, 0.13, 0.12), 0));
+      if (has("frontal")) zones.push(zone("frontal", fit(ellipse(0.5, 0.27, 0.2, 0.11), box), -90));
+      if (has("mid")) zones.push(zone("mid", fit(ellipse(0.5, 0.47, 0.17, 0.1), box), -90));
+      if (has("crown")) zones.push(zone("crown", fit(ellipse(0.5, 0.7, 0.13, 0.12), box), 0));
       break;
     case "back":
-      if (has("crown")) zones.push(zone("crown", ellipse(0.5, 0.32, 0.17, 0.14), 90));
+      if (has("crown")) zones.push(zone("crown", fit(ellipse(0.5, 0.32, 0.17, 0.14), box), 90));
       break;
     case "left":
-      if (has("frontal")) zones.push(zone("frontal", ellipse(0.38, 0.26, 0.12, 0.08), 150));
+      if (has("frontal")) zones.push(zone("frontal", fit(ellipse(0.38, 0.26, 0.12, 0.08), box), 150));
       break;
     case "right":
-      if (has("frontal")) zones.push(zone("frontal", ellipse(0.62, 0.26, 0.12, 0.08), 30));
+      if (has("frontal")) zones.push(zone("frontal", fit(ellipse(0.62, 0.26, 0.12, 0.08), box), 30));
       break;
   }
   return { zones, scale: 1 };
 }
 
-export function defaultDesigns(areas: Record<RegionId, number>): Record<ViewId, ViewDesign> {
+export function defaultDesigns(
+  areas: Record<RegionId, number>,
+  photos: Partial<Record<ViewId, PhotoAsset>> = {},
+): Record<ViewId, ViewDesign> {
   return {
-    front: defaultDesign("front", areas),
-    top: defaultDesign("top", areas),
-    back: defaultDesign("back", areas),
-    left: defaultDesign("left", areas),
-    right: defaultDesign("right", areas),
+    front: defaultDesign("front", areas, photos.front?.foreground),
+    top: defaultDesign("top", areas, photos.top?.foreground),
+    back: defaultDesign("back", areas, photos.back?.foreground),
+    left: defaultDesign("left", areas, photos.left?.foreground),
+    right: defaultDesign("right", areas, photos.right?.foreground),
   };
 }
 
