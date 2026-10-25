@@ -62,7 +62,7 @@ function Wizard() {
       </main>
 
       <footer className="mt-12 border-t border-slate-200 pt-6 text-xs text-slate-400">
-        For consultation and illustration purposes only. Not a medical device. Next reads the hairline from the photos. Simulate results sends them once and saves every month on this page.
+        For consultation and illustration purposes only. Not a medical device. Next and Simulate results send the photos to fal.ai.
       </footer>
     </div>
   );

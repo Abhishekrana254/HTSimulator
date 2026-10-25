@@ -1,8 +1,8 @@
+import { falEditHair } from "./fal";
 import { smoothClosedCurve } from "./geometry";
 import { getImage } from "./image";
 import type { PhotoAsset, ViewDesign } from "./types";
 
-const AI_URL = "http://127.0.0.1:3457/inpaint";
 const MAX_SIDE = 1024;
 
 function frameSize(photo: PhotoAsset) {
@@ -52,6 +52,7 @@ function zoneMask(design: ViewDesign, w: number, h: number) {
 /**
  * Grows or reduces hair inside the traced zones.
  * `source` is a previous result to edit; otherwise the original photo is used.
+ * The photo goes straight from the browser to fal.
  */
 export async function naturalHair(
   photo: PhotoAsset,
@@ -64,25 +65,15 @@ export async function naturalHair(
   if (!design.zones.length) throw new Error("No hairline on this photo yet.");
   const base = await photoCanvas(photo);
   const mask = zoneMask(design, base.width, base.height);
-  const res = await fetch(AI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      image: source ?? base.toDataURL("image/jpeg", 0.92),
-      mask: mask.toDataURL("image/png"),
-      months,
-      color,
-      grafts,
-      basis: source ? "final" : "original",
-      width: base.width,
-      height: base.height,
-    }),
-  }).catch(() => {
-    throw new Error("The local hair server is not running.");
-  });
-  const json = (await res.json().catch(() => ({}))) as { image?: string; error?: string };
-  if (!res.ok || !json.image) throw new Error(json.error || "The hair model failed");
-  return pasteInsideZone(base, mask, json.image);
+  const edited = await falEditHair(
+    source ?? base.toDataURL("image/jpeg", 0.92),
+    mask.toDataURL("image/png"),
+    months,
+    color,
+    grafts,
+    source ? "final" : "original",
+  );
+  return pasteInsideZone(base, mask, edited);
 }
 
 /** Keeps the original photo outside the zone, so the hairline is the only area that changes. */
