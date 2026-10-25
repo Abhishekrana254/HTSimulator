@@ -109,38 +109,56 @@ export async function falTraceZones(image: string, view: ViewId): Promise<RawZon
   return parseZones(text, view);
 }
 
-function promptFor(months: number, color: string | undefined, grafts: number | undefined, basis: "original" | "final") {
+function stageLines(months: number, grafts: number | undefined) {
   const count = Number(grafts) > 0 ? `${Number(grafts).toLocaleString()} grafts` : "a full transplant";
+  if (months <= 3) {
+    return [
+      "Show 3 months after surgery, when the transplanted hairs have shed and only the first growth is starting.",
+      "Inside the white mask, about 85 percent must stay bare scalp skin, the same colour as the nearby forehead.",
+      "Add only a few dark hairs, 2 to 4 millimetres long, like light stubble. No hairline shape yet.",
+      "Do not copy the thickness of the hair outside the mask.",
+    ];
+  }
+  if (months <= 6) {
+    return [
+      "Show 6 months after surgery.",
+      "Inside the white mask, grow short hair at about half the density of the hair outside the mask.",
+      "Scalp skin stays easy to see between the hairs. The new hairline is there, but see-through.",
+      "Clearly shorter and thinner than a finished result. Do not fill the mask.",
+    ];
+  }
+  if (months < 12) {
+    return [
+      "Show 9 months after surgery.",
+      "Inside the white mask, hair covers much of the skin but is still obviously thinner and shorter than the hair outside the mask.",
+      "Scalp shows through along the front edge, the temples, and the crown whorl.",
+      "This must look unfinished. Do not make it as dense as a 12-month result.",
+    ];
+  }
+  return [
+    `Create the finished 12-month result of a hair transplant of about ${count}.`,
+    "Fill the white mask with the fullest natural density. This is the thickest photo in the series, clearly fuller than 9, 6, or 3 months.",
+    "Cover the thin scalp. Do not leave a bald patch in the middle of the mask.",
+    "Keep a soft irregular hairline along the mask edge.",
+  ];
+}
+
+function promptFor(months: number, color: string | undefined, grafts: number | undefined) {
   const hex = typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#3b2a20";
-  const shared = [
+  return [
+    ...stageLines(months, grafts),
     "Change only the scalp inside the white mask. Leave every black pixel exactly as it is.",
     "The edge of the white mask is the hairline or the edge of the thinning area. Follow that edge.",
     `Match the hair already on this head: dark, close to ${hex}, same thickness, shine, direction, and lighting.`,
     "Keep the same person, face, ears, pose, clothes, background, camera angle, and framing.",
     "Real photograph. Not a wig, not a drawing, not a flat color patch, not blonde, not yellow.",
     "Do not add text.",
-  ];
-  if (basis === "final" && months < 12) {
-    const earlier =
-      months <= 3
-        ? "Turn the hair inside the mask back to 3 months after surgery: very short fine growth, with a lot of scalp still showing."
-        : months <= 6
-          ? "Turn the hair inside the mask back to 6 months after surgery: short hair at about half the density of this photo, with scalp still showing."
-          : "Turn the hair inside the mask back to 9 months after surgery: mostly grown, but still shorter and a little thinner than this finished photo, with a bit of scalp showing.";
-    return ["This photo is the finished 12-month transplant. Do not add hair.", earlier, "The result must show less hair than this photo, never more.", ...shared].join(" ");
-  }
-  return [
-    `Create the finished 12-month result of a hair transplant of about ${count}.`,
-    "Fill the white mask with the fullest natural density. This is the final photo, thicker and more complete than a 9-month result.",
-    "Cover the thin scalp. Do not leave a bald patch in the middle of the mask.",
-    "Keep a soft irregular hairline along the mask edge.",
-    ...shared,
   ].join(" ");
 }
 
-export async function falEditHair(image: string, mask: string, months: number, color?: string, grafts?: number, basis: "original" | "final" = "original") {
+export async function falEditHair(image: string, mask: string, months: number, color?: string, grafts?: number) {
   const json = await falPost(EDIT_ENDPOINT, {
-    prompt: promptFor(months, color, grafts, basis),
+    prompt: promptFor(months, color, grafts),
     image_urls: [image],
     mask_url: mask,
     image_size: "auto",

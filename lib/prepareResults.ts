@@ -4,12 +4,10 @@ import { resultCache, resultKey, zoneKeyOf } from "./resultCache";
 import { TIMELINE } from "./planning";
 import type { SimulatorState } from "./types";
 
-const EARLIER = [9, 6, 3] as const;
-
 /**
  * Builds every view and every month before the results screen opens.
- * The 12-month photo is the full result. Earlier months are that same photo with growth taken back,
- * so 12 months stays the fullest.
+ * Each month is grown from the original photo, then mixed so 3 is sparse,
+ * 6 is about half, 9 is still thin, and 12 is the full result.
  */
 export async function prepareAllResults(state: SimulatorState, onProgress?: (label: string) => void) {
   const jobs = VIEWS.flatMap((view) => {
@@ -26,18 +24,12 @@ export async function prepareAllResults(state: SimulatorState, onProgress?: (lab
     done += 1;
     const zones = zoneKeyOf(job.design.zones);
     const keyFor = (months: number) => resultKey(job.id, months, zones, state.plan.grafts, state.plan.hairColor);
-    onProgress?.(`${job.label}: 12 months (${done} of ${total})`);
-    let full = resultCache.get(keyFor(12));
-    if (!full) {
-      full = await naturalHair(job.photo, job.design, 12, state.plan.hairColor, state.plan.grafts);
-      resultCache.set(keyFor(12), full);
-    }
-    const missing = EARLIER.filter((months) => !resultCache.has(keyFor(months)));
+    const missing = TIMELINE.map((stage) => stage.months).filter((months) => !resultCache.has(keyFor(months)));
     if (!missing.length) continue;
-    onProgress?.(`${job.label}: 9, 6 and 3 months (${done} of ${total})`);
+    onProgress?.(`${job.label}: 3, 6, 9 and 12 months (${done} of ${total})`);
     await Promise.all(
       missing.map(async (months) => {
-        const image = await naturalHair(job.photo, job.design, months, state.plan.hairColor, state.plan.grafts, full);
+        const image = await naturalHair(job.photo, job.design, months, state.plan.hairColor, state.plan.grafts);
         resultCache.set(keyFor(months), image);
       }),
     );

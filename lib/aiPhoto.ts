@@ -5,6 +5,14 @@ import type { PhotoAsset, ViewDesign } from "./types";
 
 const MAX_SIDE = 1024;
 
+/** Share of the new hair that stays visible. The rest of the zone keeps the original scalp. */
+function newHairAmount(months: number) {
+  if (months <= 3) return 0.2;
+  if (months <= 6) return 0.48;
+  if (months < 12) return 0.72;
+  return 1;
+}
+
 function frameSize(photo: PhotoAsset) {
   const scale = Math.min(1, MAX_SIDE / Math.max(photo.width, photo.height));
   return { w: Math.round(photo.width * scale), h: Math.round(photo.height * scale) };
@@ -44,15 +52,15 @@ function zoneMask(design: ViewDesign, w: number, h: number) {
   soft.width = w;
   soft.height = h;
   const softCtx = soft.getContext("2d")!;
-  softCtx.filter = "blur(3px)";
+  softCtx.filter = "blur(10px)";
   softCtx.drawImage(mask, 0, 0);
   return soft;
 }
 
 /**
- * Grows or reduces hair inside the traced zones.
- * `source` is a previous result to edit; otherwise the original photo is used.
- * The photo goes straight from the browser to fal.
+ * Grows hair inside the traced zones for one month.
+ * The photo goes straight from the browser to fal, then earlier months
+ * are mixed back toward the original scalp so 3, 6, 9, and 12 stay apart.
  */
 export async function naturalHair(
   photo: PhotoAsset,
@@ -60,24 +68,16 @@ export async function naturalHair(
   months: number,
   color?: string,
   grafts?: number,
-  source?: string,
 ): Promise<string> {
   if (!design.zones.length) throw new Error("No hairline on this photo yet.");
   const base = await photoCanvas(photo);
   const mask = zoneMask(design, base.width, base.height);
-  const edited = await falEditHair(
-    source ?? base.toDataURL("image/jpeg", 0.92),
-    mask.toDataURL("image/png"),
-    months,
-    color,
-    grafts,
-    source ? "final" : "original",
-  );
-  return pasteInsideZone(base, mask, edited);
+  const edited = await falEditHair(base.toDataURL("image/jpeg", 0.92), mask.toDataURL("image/png"), months, color, grafts);
+  return pasteInsideZone(base, mask, edited, newHairAmount(months));
 }
 
-/** Keeps the original photo outside the zone, so the hairline is the only area that changes. */
-async function pasteInsideZone(base: HTMLCanvasElement, mask: HTMLCanvasElement, modelUrl: string): Promise<string> {
+/** Keeps the original photo outside the zone. `amount` is how much of the new hair covers the scalp. */
+async function pasteInsideZone(base: HTMLCanvasElement, mask: HTMLCanvasElement, modelUrl: string, amount: number): Promise<string> {
   const model = await getImage(modelUrl);
   const layer = document.createElement("canvas");
   layer.width = base.width;
@@ -95,6 +95,7 @@ async function pasteInsideZone(base: HTMLCanvasElement, mask: HTMLCanvasElement,
   out.height = base.height;
   const outCtx = out.getContext("2d")!;
   outCtx.drawImage(base, 0, 0);
+  outCtx.globalAlpha = amount;
   outCtx.drawImage(layer, 0, 0);
   return out.toDataURL("image/jpeg", 0.92);
 }
