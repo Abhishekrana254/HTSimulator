@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "ai": "node server/hair-ai.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -11,7 +12,8 @@
   "dependencies": {
     "next": "^16.4.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

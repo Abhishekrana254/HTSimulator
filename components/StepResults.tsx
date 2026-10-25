@@ -1,26 +1,65 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { VIEWS, viewLabel } from "@/lib/defaults";
 import { downloadCanvas, getImage } from "@/lib/image";
-import { REGIONS, TIMELINE } from "@/lib/planning";
+import { computeRegions, REGIONS, TIMELINE } from "@/lib/planning";
+import { prepareAllResults } from "@/lib/prepareResults";
+import { resultCache, resultKey, zoneKeyOf } from "@/lib/resultCache";
 import type { ViewId } from "@/lib/types";
 import { useSimulator } from "./SimulatorProvider";
 import { Button, Card, Label, Segmented } from "./ui";
-import { useSimulation, type Months } from "./useSimulation";
+import type { Months } from "./useSimulation";
 
 export function StepResults({ onBack, onRestart }: { onBack: () => void; onRestart: () => void }) {
   const { state } = useSimulator();
   const views = VIEWS.filter((v) => state.photos[v.id]);
   const [view, setView] = useState<ViewId>(views[0]?.id ?? "front");
   const [months, setMonths] = useState<Months>(12);
-  const [seed, setSeed] = useState(1);
   const [split, setSplit] = useState(50);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [saved, setSaved] = useState(0);
+  const [making, setMaking] = useState<string>();
+  const [aiError, setAiError] = useState<string>();
   const container = useRef<HTMLDivElement>(null);
 
   const photo = state.photos[view]!;
-  const { rendering, regions } = useSimulation(canvasRef, photo, state.designs[view], state.plan, { months, seed, delay: 0 });
+  const design = state.designs[view];
+  const regions = useMemo(() => computeRegions(state.plan), [state.plan]);
+  const zoneKey = zoneKeyOf(design.zones);
+  const currentKey = resultKey(view, months, zoneKey, state.plan.grafts, state.plan.hairColor);
+  const currentImage = resultCache.get(currentKey);
+
+  useEffect(() => {
+    const missing = VIEWS.some((item) => {
+      const itemPhoto = state.photos[item.id];
+      const itemDesign = state.designs[item.id];
+      if (!itemPhoto || !itemDesign.zones.length) return false;
+      const zones = zoneKeyOf(itemDesign.zones);
+      return TIMELINE.some((stage) => !resultCache.has(resultKey(item.id, stage.months, zones, state.plan.grafts, state.plan.hairColor)));
+    });
+    if (!missing) return;
+    let alive = true;
+    setAiError(undefined);
+    prepareAllResults(state, (label) => {
+      if (alive) setMaking(label);
+    })
+      .then(() => {
+        if (alive) setSaved((n) => n + 1);
+      })
+      .catch((error: unknown) => {
+        if (alive) setAiError(error instanceof Error ? error.message : "The hair model failed");
+      })
+      .finally(() => {
+        if (alive) setMaking(undefined);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [state]);
+
+  useEffect(() => {
+    if (currentImage) setSplit(0);
+  }, [currentImage]);
 
   function moveSplit(clientX: number) {
     const rect = container.current!.getBoundingClientRect();
@@ -28,9 +67,9 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
   }
 
   async function exportComparison() {
-    const after = canvasRef.current;
-    if (!after) return;
+    if (!currentImage) return;
     const before = await getImage(photo.url);
+    const after = await getImage(currentImage);
     const { width: w, height: h } = photo;
     const pad = Math.round(w * 0.03);
     const header = Math.round(w * 0.07);
@@ -42,7 +81,7 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(before, pad, header, w, h);
-    ctx.drawImage(after, pad * 2 + w, header, w, h);
+    drawCover(ctx, after, pad * 2 + w, header, w, h);
     ctx.fillStyle = "#0f172a";
     ctx.font = `600 ${Math.round(header * 0.4)}px sans-serif`;
     ctx.textBaseline = "middle";
@@ -65,7 +104,9 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Simulated result</h2>
-        <p className="mt-1 text-sm text-slate-600">Drag the slider to compare. Switch views and the post-op timeline to see how growth progresses.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          The after photo is made automatically for 3, 6, 9 and 12 months, using the hairline traced on this picture. Drag the slider to compare.
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -86,12 +127,16 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
             onPointerMove={(e) => e.buttons && moveSplit(e.clientX)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
-            <img src={photo.url} alt="Before" className="absolute inset-0 h-full w-full" draggable={false} />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 h-full w-full"
-              style={{ clipPath: `inset(0 0 0 ${split}%)` }}
-            />
+            <img src={photo.url} alt="Before" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
+            {currentImage && (
+              // eslint-disable-next-line @next/next/no-img-element -- data URL from the saved result
+              <img key={`${currentKey}:${saved}`} src={currentImage} alt="Natural result" className="absolute inset-0 z-10 h-full w-full object-cover" style={{ clipPath: `inset(0 0 0 ${split}%)` }} draggable={false} />
+            )}
+            {!currentImage && design.zones.length > 0 && !aiError && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/55 px-6 text-center text-sm text-white">
+                {making ?? "Opening the saved photos…"}
+              </div>
+            )}
             <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${split}%` }}>
               <div className="absolute top-1/2 left-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg">
                 ⇆
@@ -99,16 +144,17 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
             </div>
             <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs text-white">Before</span>
             <span className="absolute right-3 top-3 rounded-full bg-teal-600/90 px-2.5 py-1 text-xs text-white">
-              {rendering ? "Rendering…" : "After"}
+              {currentImage ? "After" : "Preparing"}
             </span>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setSeed((s) => s + 1)}>
-              ↻ New variation
+            <Button onClick={exportComparison} disabled={!currentImage}>
+              Download {viewLabel(view).toLowerCase()} comparison
             </Button>
-            <Button onClick={exportComparison}>Download {viewLabel(view).toLowerCase()} comparison</Button>
           </div>
+          {!design.zones.length && <p className="text-sm text-slate-500">No hairline on this photo yet. Trace one on the design step.</p>}
+          {aiError && <p className="text-sm text-red-600">{aiError}</p>}
         </div>
 
         <div className="space-y-4">
@@ -173,4 +219,12 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
       </div>
     </div>
   );
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, x: number, y: number, w: number, h: number) {
+  const ir = img.width / img.height;
+  const r = w / h;
+  const sw = ir > r ? img.height * r : img.width;
+  const sh = ir > r ? img.height : img.width / r;
+  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
 }

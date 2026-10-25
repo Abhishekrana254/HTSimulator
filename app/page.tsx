@@ -51,7 +51,19 @@ function Wizard() {
           </h1>
           <p className="text-sm text-slate-500">Plan grafts, design a hairline, preview the result.</p>
         </div>
-        <Stepper step={current} maxReached={state.photos.front ? maxReached : 0} onSelect={go} />
+        <div className="flex items-center gap-3">
+          <Stepper step={current} maxReached={state.photos.front ? maxReached : 0} onSelect={go} />
+          <button
+            type="button"
+            className="text-sm text-slate-500 hover:text-slate-800"
+            onClick={async () => {
+              await fetch("/api/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <main>
@@ -62,7 +74,7 @@ function Wizard() {
       </main>
 
       <footer className="mt-12 border-t border-slate-200 pt-6 text-xs text-slate-400">
-        For consultation and illustration purposes only. Not a medical device. Photos are processed locally in your browser.
+        For consultation and illustration purposes only. Not a medical device. Next and Simulate results send the photos to fal.ai.
       </footer>
     </div>
   );

@@ -10,6 +10,8 @@ export type RenderOptions = {
   growth: number;
   lengthFactor: number;
   seed: number;
+  /** Colour strands from the hair already in the photo. */
+  matchPhoto?: boolean;
 };
 
 /** Assumed width of the photographed area in cm; refined per view by `design.scale`. */
@@ -51,6 +53,52 @@ function hexToRgb(hex: string) {
   return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
 }
 
+/** Five real hair colours from the photo, darkest first. Null when the photo has too little hair. */
+function paletteFrom(ctx: CanvasRenderingContext2D, w: number, h: number): string[] | null {
+  const step = Math.max(4, Math.round(Math.min(w, h) / 90));
+  const { data } = ctx.getImageData(0, 0, w, h);
+  const samples: { L: number; hex: string }[] = [];
+  const yMax = Math.round(h * 0.55);
+  for (let y = 0; y < yMax; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const L = 0.299 * r + 0.587 * g + 0.114 * b;
+      // Dark brown scalp hair only. Blue shadow and skin both read as the wrong colour.
+      if (L < 16 || L > 80) continue;
+      if (b > r + 8 || r + 4 < g) continue;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max > 0 && (max - min) / max > 0.55) continue;
+      samples.push({ L, hex: rgbHex(r, g, b, L) });
+    }
+  }
+  if (samples.length < 30) return null;
+  samples.sort((a, b) => a.L - b.L);
+  const pick = (t: number) => samples[Math.min(samples.length - 1, Math.floor(t * (samples.length - 1)))].hex;
+  return [0.4, 0.55, 0.7, 0.82, 0.92].map(pick);
+}
+
+function rgbHex(r: number, g: number, b: number, L: number) {
+  // Near-black samples turn into ink on bare skin. Hold them up into a visible dark brown.
+  const floor = L < 55 ? 0.62 : 0.2;
+  const lift = (v: number, toward: number) => Math.round(v * (1 - floor) + toward * floor);
+  const hex = (v: number) => v.toString(16).padStart(2, "0");
+  return `#${hex(lift(r, 112))}${hex(lift(g, 72))}${hex(lift(b, 48))}`;
+}
+
+function strandColor(palette: string[] | null, fallback: string, index: number, shadeAmount: number, alpha: number) {
+  if (palette) return withAlpha(palette[index % palette.length], alpha);
+  return shade(fallback, shadeAmount, alpha);
+}
+
+function withAlpha(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function shade(hex: string, amount: number, alpha: number) {
   const { r, g, b } = hexToRgb(hex);
   const f = (c: number) => Math.round(amount >= 0 ? c + (255 - c) * amount : c * (1 + amount));
@@ -71,10 +119,11 @@ export function renderSimulation(ctx: CanvasRenderingContext2D, img: CanvasImage
   ctx.clearRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
   if (growth <= 0) return;
+  const palette = opts.matchPhoto === false ? null : paletteFrom(ctx, w, h);
 
   const pxPerCm = (w / FIELD_WIDTH_CM) * design.scale;
   const baseLength = LENGTH_CM[plan.hairLength] * pxPerCm * lengthFactor;
-  const baseWidth = Math.max(0.55, pxPerCm * 0.018);
+  const baseWidth = Math.max(0.45, pxPerCm * 0.014);
 
   for (const zone of design.zones) {
     const result = regions.find((r) => r.region === zone.region);
@@ -88,7 +137,9 @@ export function renderSimulation(ctx: CanvasRenderingContext2D, img: CanvasImage
     const rand = mulberry32(seed ^ hashString(zone.id));
 
     const areaCm2 = polygonArea(poly) / (pxPerCm * pxPerCm);
-    const target = Math.min(MAX_STRANDS_PER_ZONE, Math.round(result.hairsPerCm2 * growth * areaCm2));
+    // Draw most of the planned hairs. A small fraction is what made the crown and the top look empty.
+    const visual = zone.region === "frontal" ? 0.42 : 0.62;
+    const target = Math.min(MAX_STRANDS_PER_ZONE, Math.round(result.hairsPerCm2 * growth * areaCm2 * visual));
     const roots: { x: number; y: number }[] = [];
     const buckets: Strand[][] = Array.from({ length: COLOR_STEPS.length * WIDTH_STEPS.length }, () => []);
     const baseAngle = (zone.angle * Math.PI) / 180;
@@ -113,10 +164,10 @@ export function renderSimulation(ctx: CanvasRenderingContext2D, img: CanvasImage
       } else {
         angle = baseAngle - Math.sin(baseAngle) * ((x - center.x) / halfWidth) * fan;
       }
-      angle += (rand() + rand() - 1) * 0.35;
+      angle += (rand() + rand() - 1) * (isWhorl ? 0.45 : 0.4);
 
-      const len = baseLength * (0.55 + 0.6 * rand()) * (0.65 + 0.35 * edge);
-      const curl = (rand() - 0.5) * 0.5 * len;
+      const len = baseLength * ((isWhorl ? 0.7 : 0.55) + 0.45 * rand()) * (0.75 + 0.25 * edge);
+      const curl = (rand() - 0.5) * 0.2 * len;
       const x1 = x + Math.cos(angle) * len;
       const y1 = y + Math.sin(angle) * len;
       const strand: Strand = {
@@ -135,32 +186,32 @@ export function renderSimulation(ctx: CanvasRenderingContext2D, img: CanvasImage
 
     // Tint the skin under the strands so the scalp doesn't shine through. Built from
     // the strand roots, so it follows the same density and irregular edge as the hair.
-    drawScalpCoverage(ctx, roots, plan.hairColor, pxPerCm * 0.12, 0.55 * result.coverage * growth);
+    // A light tint only. A heavy fill is what made the result look like a painted block.
+    const fill = palette ? palette[2] : plan.hairColor;
+    drawScalpCoverage(ctx, roots, fill, pxPerCm * 0.09, 0.24 * result.coverage * growth);
 
     ctx.save();
     ctx.lineCap = "round";
-    // Shadow pass gives strands depth against the skin.
     strokeBuckets(ctx, buckets, (ci, wi) => ({
-      color: shade(plan.hairColor, -0.5, 0.18),
-      width: baseWidth * WIDTH_STEPS[wi] * 1.8,
-      dx: baseWidth * 0.6,
-      dy: baseWidth * 0.8,
+      color: strandColor(palette, plan.hairColor, ci, -0.25, 0.12),
+      width: baseWidth * WIDTH_STEPS[wi] * 1.05,
+      dx: baseWidth * 0.3,
+      dy: baseWidth * 0.35,
     }));
     strokeBuckets(ctx, buckets, (ci, wi) => ({
-      color: shade(plan.hairColor, COLOR_STEPS[ci], 0.92),
-      width: baseWidth * WIDTH_STEPS[wi],
+      color: strandColor(palette, plan.hairColor, ci, COLOR_STEPS[ci], 0.8),
+      width: baseWidth * WIDTH_STEPS[wi] * 0.85,
       dx: 0,
       dy: 0,
     }));
-    // Sparse highlights catch the light on top of the strands.
     strokeBuckets(
       ctx,
-      buckets.map((b) => b.filter((_, i) => i % 4 === 0)),
+      buckets.map((b) => b.filter((_, i) => i % 5 === 0)),
       (ci, wi) => ({
-        color: shade(plan.hairColor, 0.3, 0.22),
-        width: baseWidth * WIDTH_STEPS[wi] * 0.45,
-        dx: -baseWidth * 0.2,
-        dy: -baseWidth * 0.2,
+        color: strandColor(palette, plan.hairColor, Math.min(COLOR_STEPS.length - 1, ci + 1), 0.25, 0.28),
+        width: baseWidth * WIDTH_STEPS[wi] * 0.4,
+        dx: -baseWidth * 0.15,
+        dy: -baseWidth * 0.15,
       }),
     );
     ctx.restore();
@@ -198,7 +249,7 @@ function drawScalpCoverage(ctx: CanvasRenderingContext2D, roots: { x: number; y:
   const offset = ctx.canvas.width * 2 + radius * 8;
   ctx.save();
   ctx.globalAlpha = Math.min(1, alpha);
-  ctx.globalCompositeOperation = "multiply";
+  ctx.globalCompositeOperation = "source-over";
   ctx.shadowColor = color;
   ctx.shadowBlur = radius * 1.5;
   ctx.shadowOffsetX = offset;

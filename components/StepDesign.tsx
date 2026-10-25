@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { tracePhoto } from "@/lib/aiZones";
+import { prepareAllResults } from "@/lib/prepareResults";
 import { frontHairlinePoints, HAIRLINE_TEMPLATES, newId, VIEWS } from "@/lib/defaults";
-import { REGIONS, regionMeta } from "@/lib/planning";
+import { defaultAllocation, recommendedGrafts, REGIONS, regionMeta } from "@/lib/planning";
 import type { RegionId, ViewId, Zone } from "@/lib/types";
 import { useSimulator } from "./SimulatorProvider";
 import { Button, Card, Label, Segmented } from "./ui";
@@ -13,8 +15,10 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
   const views = VIEWS.filter((v) => state.photos[v.id]);
   const [view, setView] = useState<ViewId>(views[0]?.id ?? "front");
   const [selectedId, setSelectedId] = useState<string>();
-  const [preview, setPreview] = useState(false);
   const [eyedropper, setEyedropper] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const [tracing, setTracing] = useState(false);
+  const [making, setMaking] = useState<string>();
 
   const photo = state.photos[view];
   const design = state.designs[view];
@@ -59,7 +63,8 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
       <div>
         <h2 className="text-xl font-semibold">Design the hairline</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Shape each treatment zone on every photo. On the front view, the lower edge of the zone is the new hairline.
+          A vision model traces the thinning scalp and the hairline. Drag a zone to move it, or drag the handles to reshape it.
+          The result grows hair inside this same outline. On the front view, the lower edge is the new hairline.
         </p>
       </div>
 
@@ -74,22 +79,18 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
                 setSelectedId(undefined);
               }}
             />
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} className="h-4 w-4 accent-teal-600" />
-              Live preview
-            </label>
           </div>
           <ZoneEditor
             photo={photo}
             design={design}
             plan={state.plan}
-            preview={preview}
+            preview={false}
             selectedId={selectedId}
             eyedropper={eyedropper}
             onSelect={setSelectedId}
             onChange={setDesign}
             onPickColor={(hairColor) => {
-              dispatch({ type: "updatePlan", patch: { hairColor } });
+              dispatch({ type: "updatePlan", patch: { hairColor, hairFromPhoto: false } });
               setEyedropper(false);
             }}
           />
@@ -220,15 +221,52 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
               onChange={(e) => setDesign({ ...design, scale: Number(e.target.value) })}
               className="w-full"
             />
-            <div className="mt-4 flex items-center justify-between gap-2">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <Button variant={eyedropper ? "primary" : "secondary"} className="px-3 py-1.5 text-xs" onClick={() => setEyedropper(!eyedropper)}>
                 <span className="h-3 w-3 rounded-full border border-white/60" style={{ background: state.plan.hairColor }} />
                 {eyedropper ? "Click existing hair…" : "Pick hair colour"}
+              </Button>
+              <Button
+                variant="secondary"
+                className="px-3 py-1.5 text-xs"
+                disabled={tracing}
+                onClick={async () => {
+                  setTracing(true);
+                  setNotice(undefined);
+                  try {
+                    const zones = await tracePhoto(photo, view);
+                    if (!zones.length) {
+                      setNotice("No thinning was marked on this photo. Draw a zone if you still want one here.");
+                      return;
+                    }
+                    setDesign({ ...design, zones });
+                    setSelectedId(zones[0].id);
+                    dispatch({ type: "setPhoto", view, photo: { ...photo, detected: zones, traceNote: undefined } });
+                    const areas = { ...state.plan.areas };
+                    let opened = false;
+                    for (const zone of zones) {
+                      if (areas[zone.region] > 0) continue;
+                      areas[zone.region] = zone.region === "crown" ? 40 : 30;
+                      opened = true;
+                    }
+                    const grafts = Math.max(state.plan.grafts, recommendedGrafts(areas));
+                    if (opened || grafts !== state.plan.grafts) {
+                      dispatch({ type: "updatePlan", patch: { areas, grafts, allocation: defaultAllocation(areas) } });
+                    }
+                  } catch (error) {
+                    setNotice(error instanceof Error ? error.message : "Could not trace the hairline.");
+                  } finally {
+                    setTracing(false);
+                  }
+                }}
+              >
+                {tracing ? "Tracing…" : "Trace again"}
               </Button>
               <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => dispatch({ type: "resetDesign", view })}>
                 Reset this view
               </Button>
             </div>
+            {notice && <p className="mt-2 text-xs text-slate-500">{notice}</p>}
           </Card>
         </div>
       </div>
@@ -237,7 +275,22 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
         <Button variant="secondary" onClick={onBack}>
           ← Graft plan
         </Button>
-        <Button onClick={onNext}>Simulate results →</Button>
+        <Button
+          disabled={!!making}
+          onClick={async () => {
+            setMaking("Making every month…");
+            setNotice(undefined);
+            try {
+              await prepareAllResults(state, setMaking);
+              onNext();
+            } catch (error) {
+              setNotice(error instanceof Error ? error.message : "Could not make the photos.");
+              setMaking(undefined);
+            }
+          }}
+        >
+          {making ?? "Simulate results →"}
+        </Button>
       </div>
     </div>
   );
