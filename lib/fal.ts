@@ -6,7 +6,7 @@ const EDIT_ENDPOINT = "https://fal.run/openai/gpt-image-2.5/sunburst/edit";
 type RawZone = { region: RegionId; points: { x: number; y: number }[]; angle: number; softness: number };
 
 function falKey() {
-  const key = process.env.FAL_KEY?.trim();
+  const key = process.env.FAL_KEY?.trim() || process.env.NEXT_PUBLIC_FAL_KEY?.trim();
   if (!key) throw new Error("The hair model key is missing from this site.");
   return key;
 }
@@ -53,7 +53,7 @@ function zonePrompt(view: ViewId) {
     where[view],
     'Return JSON only: {"zones":[{"region":"frontal","angle":90,"points":[{"x":0.42,"y":0.31}]}]}',
     "region is one of frontal, mid, crown.",
-    "Each zone needs 12 to 20 points tracing the thin scalp, normalized from 0 to 1. x is from the left, y is from the top of the full image.",
+    "Each zone needs exactly 10 points tracing the thin scalp, normalized from 0 to 1. x is from the left, y is from the top of the full image.",
     "angle is hair direction in degrees: 0 points right, 90 points down.",
     'If nothing is thin, return {"zones":[]}.',
   ].join(" ");
@@ -83,9 +83,12 @@ function parseZones(text: string, view: ViewId): RawZone[] {
         return { x: clamp01(x), y: clamp01(y) };
       })
       .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-    if (points.length > 28) {
-      const step = Math.ceil(points.length / 24);
-      points = points.filter((_, index) => index % step === 0);
+    if (points.length > 10) {
+      const count = 10;
+      const source = points;
+      points = Array.from({ length: count }, (_, index) => source[Math.round((index * (source.length - 1)) / (count - 1))]).filter(
+        (point): point is { x: number; y: number } => Boolean(point),
+      );
     }
     if (points.length < 8) return [];
     const angle = Number(item.angle);

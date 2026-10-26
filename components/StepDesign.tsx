@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { tracePhoto } from "@/lib/aiZones";
-import { prepareAllResults } from "@/lib/prepareResults";
+import { prepareAllResults, type WorkUpdate } from "@/lib/prepareResults";
 import { frontHairlinePoints, HAIRLINE_TEMPLATES, newId, VIEWS } from "@/lib/defaults";
 import { defaultAllocation, recommendedGrafts, REGIONS, regionMeta } from "@/lib/planning";
 import type { RegionId, ViewId, Zone } from "@/lib/types";
 import { useSimulator } from "./SimulatorProvider";
 import { Button, Card, Label, Segmented } from "./ui";
+import { WorkStatus } from "./WorkStatus";
 import { ZoneEditor } from "./ZoneEditor";
 
 export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
@@ -18,7 +19,7 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
   const [eyedropper, setEyedropper] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [tracing, setTracing] = useState(false);
-  const [making, setMaking] = useState<string>();
+  const [making, setMaking] = useState<WorkUpdate>();
 
   const photo = state.photos[view];
   const design = state.designs[view];
@@ -271,14 +272,15 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
         </div>
       </div>
 
+      {making && <WorkStatus title="Making the result photos" {...making} />}
       <div className="flex justify-between">
-        <Button variant="secondary" onClick={onBack}>
+        <Button variant="secondary" onClick={onBack} disabled={!!making}>
           ← Graft plan
         </Button>
         <Button
           disabled={!!making}
           onClick={async () => {
-            setMaking("Making every month…");
+            setMaking({ detail: "Starting the result photos", step: 1, steps: 1, secondsEach: 50 });
             setNotice(undefined);
             try {
               await prepareAllResults(state, setMaking);
@@ -289,7 +291,7 @@ export function StepDesign({ onBack, onNext }: { onBack: () => void; onNext: () 
             }
           }}
         >
-          {making ?? "Simulate results →"}
+          {making ? "Making the photos…" : "Simulate results →"}
         </Button>
       </div>
     </div>

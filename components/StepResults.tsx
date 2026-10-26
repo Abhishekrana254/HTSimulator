@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { VIEWS, viewLabel } from "@/lib/defaults";
 import { downloadCanvas, getImage } from "@/lib/image";
 import { computeRegions, REGIONS, TIMELINE } from "@/lib/planning";
-import { prepareAllResults } from "@/lib/prepareResults";
+import { prepareAllResults, type WorkUpdate } from "@/lib/prepareResults";
 import { resultCache, resultKey, zoneKeyOf } from "@/lib/resultCache";
 import type { ViewId } from "@/lib/types";
 import { useSimulator } from "./SimulatorProvider";
+import { WorkStatus } from "./WorkStatus";
 import { Button, Card, Label, Segmented } from "./ui";
 import type { Months } from "./useSimulation";
 
@@ -18,7 +19,7 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
   const [months, setMonths] = useState<Months>(12);
   const [split, setSplit] = useState(50);
   const [saved, setSaved] = useState(0);
-  const [making, setMaking] = useState<string>();
+  const [making, setMaking] = useState<WorkUpdate>();
   const [aiError, setAiError] = useState<string>();
   const container = useRef<HTMLDivElement>(null);
 
@@ -133,8 +134,14 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
               <img key={`${currentKey}:${saved}`} src={currentImage} alt="Natural result" className="absolute inset-0 z-10 h-full w-full object-cover" style={{ clipPath: `inset(0 0 0 ${split}%)` }} draggable={false} />
             )}
             {!currentImage && design.zones.length > 0 && !aiError && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/55 px-6 text-center text-sm text-white">
-                {making ?? "Opening the saved photos…"}
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/55 p-6">
+                <div className="w-full max-w-md">
+                  {making ? (
+                    <WorkStatus title="Making the result photos" {...making} />
+                  ) : (
+                    <p className="text-center text-sm text-white">Opening the saved photos…</p>
+                  )}
+                </div>
               </div>
             )}
             <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${split}%` }}>

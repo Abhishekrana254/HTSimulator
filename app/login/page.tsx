@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { Button, Card } from "@/components/ui";
+import { staticLogin } from "@/lib/auth";
+import { basePath, STATIC_LOGIN } from "@/lib/site";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,7 +15,17 @@ export default function LoginPage() {
     event.preventDefault();
     setBusy(true);
     setError("");
-    const res = await fetch("/api/login", {
+    if (process.env.NEXT_PUBLIC_AUTH_PASSWORD) {
+      if (!staticLogin(email, password)) {
+        setError("That email or password is not recognized.");
+        setBusy(false);
+        return;
+      }
+      sessionStorage.setItem(STATIC_LOGIN, "1");
+      window.location.href = `${basePath}/`;
+      return;
+    }
+    const res = await fetch(`${basePath}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -24,7 +36,7 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    window.location.href = "/";
+    window.location.href = `${basePath}/`;
   }
 
   return (
