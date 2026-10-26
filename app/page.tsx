@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { basePath, STATIC_LOGIN } from "@/lib/site";
 import { SimulatorProvider, useSimulator } from "@/components/SimulatorProvider";
 import { StepDesign } from "@/components/StepDesign";
 import { StepPhotos } from "@/components/StepPhotos";
@@ -22,6 +23,16 @@ function Wizard() {
   const { state, dispatch } = useSimulator();
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(0);
+  const [allowed, setAllowed] = useState(!process.env.NEXT_PUBLIC_AUTH_PASSWORD);
+
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_AUTH_PASSWORD) return;
+    if (sessionStorage.getItem(STATIC_LOGIN) === "1") {
+      setAllowed(true);
+      return;
+    }
+    window.location.replace(`${basePath}/login`);
+  }, []);
 
   const go = (s: number) => {
     setStep(s);
@@ -42,6 +53,8 @@ function Wizard() {
   // Later steps need the front photo; fall back to step 1 if it was removed.
   const current = state.photos.front ? step : 0;
 
+  if (!allowed) return null;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -57,8 +70,9 @@ function Wizard() {
             type="button"
             className="text-sm text-slate-500 hover:text-slate-800"
             onClick={async () => {
-              await fetch("/api/logout", { method: "POST" });
-              window.location.href = "/login";
+              sessionStorage.removeItem(STATIC_LOGIN);
+              if (!process.env.NEXT_PUBLIC_AUTH_PASSWORD) await fetch(`${basePath}/api/logout`, { method: "POST" });
+              window.location.href = `${basePath}/login`;
             }}
           >
             Sign out

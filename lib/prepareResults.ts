@@ -4,12 +4,17 @@ import { resultCache, resultKey, zoneKeyOf } from "./resultCache";
 import { TIMELINE } from "./planning";
 import type { SimulatorState } from "./types";
 
+export type WorkUpdate = { detail: string; step: number; steps: number; secondsEach: number };
+
+/** One view's four months run together, so this is the wait for that batch. */
+export const RESULT_SECONDS = 50;
+
 /**
  * Builds every view and every month before the results screen opens.
  * Each month is grown from the original photo, then mixed so 3 is sparse,
  * 6 is about half, 9 is still thin, and 12 is the full result.
  */
-export async function prepareAllResults(state: SimulatorState, onProgress?: (label: string) => void) {
+export async function prepareAllResults(state: SimulatorState, onProgress?: (update: WorkUpdate) => void) {
   const jobs = VIEWS.flatMap((view) => {
     const photo = state.photos[view.id];
     const design = state.designs[view.id];
@@ -26,7 +31,12 @@ export async function prepareAllResults(state: SimulatorState, onProgress?: (lab
     const keyFor = (months: number) => resultKey(job.id, months, zones, state.plan.grafts, state.plan.hairColor);
     const missing = TIMELINE.map((stage) => stage.months).filter((months) => !resultCache.has(keyFor(months)));
     if (!missing.length) continue;
-    onProgress?.(`${job.label}: 3, 6, 9 and 12 months (${done} of ${total})`);
+    onProgress?.({
+      detail: `${job.label}: making 3, 6, 9 and 12 months`,
+      step: done,
+      steps: total,
+      secondsEach: RESULT_SECONDS,
+    });
     await Promise.all(
       missing.map(async (months) => {
         const image = await naturalHair(job.photo, job.design, months, state.plan.hairColor, state.plan.grafts);

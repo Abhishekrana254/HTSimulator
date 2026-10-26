@@ -5,23 +5,34 @@ import { tracePhoto } from "@/lib/aiZones";
 import { VIEWS } from "@/lib/defaults";
 import { loadPhoto, releasePhoto } from "@/lib/image";
 import type { ViewId, Zone } from "@/lib/types";
+import type { WorkUpdate } from "@/lib/prepareResults";
 import { useSimulator } from "./SimulatorProvider";
 import { Button, Card } from "./ui";
+import { WorkStatus } from "./WorkStatus";
 
 export function StepPhotos({ onNext }: { onNext: () => void }) {
   const { state, dispatch } = useSimulator();
   const count = Object.values(state.photos).filter(Boolean).length;
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState<WorkUpdate>();
   const [readError, setReadError] = useState<string>();
 
   async function next() {
-    setReading(true);
+    setReading({ detail: "Starting the hairline read", step: 1, steps: 1, secondsEach: 25 });
     setReadError(undefined);
     try {
       const detected: Partial<Record<ViewId, Zone[]>> = {};
-      for (const view of VIEWS) {
+      const photos = VIEWS.filter((view) => state.photos[view.id]);
+      let step = 0;
+      for (const view of photos) {
         const photo = state.photos[view.id];
         if (!photo) continue;
+        step += 1;
+        setReading({
+          detail: `Reading the ${view.label.toLowerCase()} hairline`,
+          step,
+          steps: photos.length,
+          secondsEach: 25,
+        });
         detected[view.id] = await tracePhoto(photo, view.id);
       }
       dispatch({ type: "applyTraces", detected });
@@ -29,7 +40,7 @@ export function StepPhotos({ onNext }: { onNext: () => void }) {
     } catch (error) {
       setReadError(error instanceof Error ? error.message : "Could not read the hairline.");
     } finally {
-      setReading(false);
+      setReading(undefined);
     }
   }
 
@@ -49,10 +60,11 @@ export function StepPhotos({ onNext }: { onNext: () => void }) {
       </div>
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-500">{count} of {VIEWS.length} photos added</span>
-        <Button onClick={next} disabled={!state.photos.front || reading}>
+        <Button onClick={next} disabled={!state.photos.front || !!reading}>
           {reading ? "Reading the hairline…" : "Continue to graft plan →"}
         </Button>
       </div>
+      {reading && <WorkStatus title="Reading the hairline" {...reading} />}
       {readError && <p className="text-sm text-red-600">{readError}</p>}
     </div>
   );

@@ -55,6 +55,15 @@ function sameText(a: string, b: string) {
   return diff === 0;
 }
 
+/** Testing site login. The password is only present in the GitHub Pages build. */
+export function staticLogin(email: string, givenPassword: string) {
+  const expected = process.env.NEXT_PUBLIC_AUTH_PASSWORD;
+  if (!expected) return null;
+  const normalized = normalizeEmail(email);
+  if (!ALLOWED_EMAILS.includes(normalized) || givenPassword !== expected) return null;
+  return normalized;
+}
+
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }

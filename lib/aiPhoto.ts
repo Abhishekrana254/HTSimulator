@@ -1,11 +1,14 @@
+import { falEditHair } from "./fal";
 import { smoothClosedCurve } from "./geometry";
 import { getImage } from "./image";
+import { basePath } from "./site";
 import type { PhotoAsset, ViewDesign } from "./types";
 
 const MAX_SIDE = 1024;
 
 async function editHair(image: string, mask: string, months: number, color?: string, grafts?: number) {
-  const res = await fetch("/api/edit", {
+  if (process.env.NEXT_PUBLIC_FAL_KEY) return falEditHair(image, mask, months, color, grafts);
+  const res = await fetch(`${basePath}/api/edit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image, mask, months, color, grafts }),
