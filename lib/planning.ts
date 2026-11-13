@@ -115,10 +115,14 @@ export const HAIR_COLORS = [
   { name: "Grey", value: "#8d8a86" },
 ];
 
-/** Growth stage after surgery: share of grafts visibly growing and relative length. */
+/**
+ * Share of the final cosmetic result that is usually visible.
+ * Clinics report about 20–30% at 3 months, 50–60% at 6, 70–80% at 9, and 90–100% at 12.
+ * Early hair is also much shorter than the finished length.
+ */
 export const TIMELINE = [
-  { months: 3, label: "3 months", growth: 0.15, length: 0.3 },
-  { months: 6, label: "6 months", growth: 0.5, length: 0.6 },
-  { months: 9, label: "9 months", growth: 0.8, length: 0.85 },
+  { months: 3, label: "3 months", growth: 0.22, length: 0.25 },
+  { months: 6, label: "6 months", growth: 0.55, length: 0.55 },
+  { months: 9, label: "9 months", growth: 0.78, length: 0.82 },
   { months: 12, label: "12+ months", growth: 1, length: 1 },
 ] as const;

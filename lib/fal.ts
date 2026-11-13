@@ -1,4 +1,4 @@
-import type { RegionId, ViewId } from "./types";
+import type { HairLength, RegionId, ViewId } from "./types";
 
 const ZONE_ENDPOINT = "https://fal.run/fal-ai/any-llm/vision";
 const EDIT_ENDPOINT = "https://fal.run/openai/gpt-image-2.5/sunburst/edit";
@@ -112,56 +112,31 @@ export async function falTraceZones(image: string, view: ViewId): Promise<RawZon
   return parseZones(text, view);
 }
 
-function stageLines(months: number, grafts: number | undefined) {
-  const count = Number(grafts) > 0 ? `${Number(grafts).toLocaleString()} grafts` : "a full transplant";
-  if (months <= 3) {
-    return [
-      "Show 3 months after surgery, when the transplanted hairs have shed and only the first growth is starting.",
-      "Inside the white mask, about 85 percent must stay bare scalp skin, the same colour as the nearby forehead.",
-      "Add only a few dark hairs, 2 to 4 millimetres long, like light stubble. No hairline shape yet.",
-      "Do not copy the thickness of the hair outside the mask.",
-    ];
-  }
-  if (months <= 6) {
-    return [
-      "Show 6 months after surgery.",
-      "Inside the white mask, grow short hair at about half the density of the hair outside the mask.",
-      "Scalp skin stays easy to see between the hairs. The new hairline is there, but see-through.",
-      "Clearly shorter and thinner than a finished result. Do not fill the mask.",
-    ];
-  }
-  if (months < 12) {
-    return [
-      "Show 9 months after surgery.",
-      "Inside the white mask, hair covers much of the skin but is still obviously thinner and shorter than the hair outside the mask.",
-      "Scalp shows through along the front edge, the temples, and the crown whorl.",
-      "This must look unfinished. Do not make it as dense as a 12-month result.",
-    ];
-  }
-  return [
-    `Create the finished 12-month result of a hair transplant of about ${count}.`,
-    "Fill the white mask with the fullest natural density. This is the thickest photo in the series, clearly fuller than 9, 6, or 3 months.",
-    "Cover the thin scalp. Do not leave a bald patch in the middle of the mask.",
-    "Keep a soft irregular hairline along the mask edge.",
-  ];
+function lengthLine(length: HairLength) {
+  if (length === "short") return "Keep the new hair short, only a few centimetres, like a short crop.";
+  if (length === "long") return "Grow the new hair to the length of the surrounding hair, or a little longer when that hair is very short.";
+  return "Match the length of the hair already on this head.";
 }
 
-function promptFor(months: number, color: string | undefined, grafts: number | undefined) {
+function promptFor(color: string | undefined, length: HairLength) {
   const hex = typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#3b2a20";
   return [
-    ...stageLines(months, grafts),
+    "Create the finished 12-month result of a hair transplant inside the white mask.",
+    "Fill the white mask with full natural density. Cover the thin scalp. Do not leave a bald patch in the middle of the mask.",
+    "Keep a soft irregular hairline along the mask edge.",
+    lengthLine(length),
     "Change only the scalp inside the white mask. Leave every black pixel exactly as it is.",
     "The edge of the white mask is the hairline or the edge of the thinning area. Follow that edge.",
-    `Match the hair already on this head: dark, close to ${hex}, same thickness, shine, direction, and lighting.`,
+    `Match the hair already on this head: close to ${hex}, same thickness, shine, direction, and lighting.`,
     "Keep the same person, face, ears, pose, clothes, background, camera angle, and framing.",
     "Real photograph. Not a wig, not a drawing, not a flat color patch, not blonde, not yellow.",
     "Do not add text.",
   ].join(" ");
 }
 
-export async function falEditHair(image: string, mask: string, months: number, color?: string, grafts?: number) {
+export async function falEditHair(image: string, mask: string, color?: string, length: HairLength = "medium") {
   const json = await falPost(EDIT_ENDPOINT, {
-    prompt: promptFor(months, color, grafts),
+    prompt: promptFor(color, length),
     image_urls: [image],
     mask_url: mask,
     image_size: "auto",

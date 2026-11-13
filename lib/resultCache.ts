@@ -1,10 +1,11 @@
-import type { ViewId } from "./types";
+import { planKey } from "./growth";
+import type { Plan, ViewId } from "./types";
 
 /** Session store so month and view switches do not ask the model again. */
 export const resultCache = new Map<string, string>();
 
-export function resultKey(view: ViewId, months: number, zoneKey: string, grafts: number, color: string) {
-  return `${view}:${months}:${zoneKey}:${grafts}:${color}`;
+export function resultKey(view: ViewId, months: number, zoneKey: string, plan: Plan) {
+  return `${view}:${months}:${zoneKey}:${planKey(plan)}`;
 }
 
 export function zoneKeyOf(points: { region: string; points: { x: number; y: number }[] }[]) {
