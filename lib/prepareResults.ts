@@ -11,8 +11,8 @@ export const RESULT_SECONDS = 50;
 
 /**
  * Builds every view and every month before the results screen opens.
- * Each month is grown from the original photo, then mixed so 3 is sparse,
- * 6 is about half, 9 is still thin, and 12 is the full result.
+ * Each view asks for one finished photo. 3, 6, 9, and 12 months, and the
+ * graft count, are then taken from that photo so they cannot come out identical.
  */
 export async function prepareAllResults(state: SimulatorState, onProgress?: (update: WorkUpdate) => void) {
   const jobs = VIEWS.flatMap((view) => {
@@ -28,18 +28,18 @@ export async function prepareAllResults(state: SimulatorState, onProgress?: (upd
   for (const job of jobs) {
     done += 1;
     const zones = zoneKeyOf(job.design.zones);
-    const keyFor = (months: number) => resultKey(job.id, months, zones, state.plan.grafts, state.plan.hairColor);
+    const keyFor = (months: number) => resultKey(job.id, months, zones, state.plan);
     const missing = TIMELINE.map((stage) => stage.months).filter((months) => !resultCache.has(keyFor(months)));
     if (!missing.length) continue;
     onProgress?.({
-      detail: `${job.label}: making 3, 6, 9 and 12 months`,
+      detail: `${job.label}: setting 3, 6, 9 and 12 months from this graft plan`,
       step: done,
       steps: total,
       secondsEach: RESULT_SECONDS,
     });
     await Promise.all(
       missing.map(async (months) => {
-        const image = await naturalHair(job.photo, job.design, months, state.plan.hairColor, state.plan.grafts);
+        const image = await naturalHair(job.photo, job.design, months, state.plan);
         resultCache.set(keyFor(months), image);
       }),
     );
@@ -48,7 +48,7 @@ export async function prepareAllResults(state: SimulatorState, onProgress?: (upd
   for (const job of jobs) {
     const zones = zoneKeyOf(job.design.zones);
     for (const stage of TIMELINE) {
-      if (!resultCache.has(resultKey(job.id, stage.months, zones, state.plan.grafts, state.plan.hairColor))) {
+      if (!resultCache.has(resultKey(job.id, stage.months, zones, state.plan))) {
         throw new Error(`The ${job.label} ${stage.label} photo did not save.`);
       }
     }

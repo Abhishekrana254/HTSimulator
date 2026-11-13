@@ -27,7 +27,7 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
   const design = state.designs[view];
   const regions = useMemo(() => computeRegions(state.plan), [state.plan]);
   const zoneKey = zoneKeyOf(design.zones);
-  const currentKey = resultKey(view, months, zoneKey, state.plan.grafts, state.plan.hairColor);
+  const currentKey = resultKey(view, months, zoneKey, state.plan);
   const currentImage = resultCache.get(currentKey);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
       const itemDesign = state.designs[item.id];
       if (!itemPhoto || !itemDesign.zones.length) return false;
       const zones = zoneKeyOf(itemDesign.zones);
-      return TIMELINE.some((stage) => !resultCache.has(resultKey(item.id, stage.months, zones, state.plan.grafts, state.plan.hairColor)));
+      return TIMELINE.some((stage) => !resultCache.has(resultKey(item.id, stage.months, zones, state.plan)));
     });
     if (!missing) return;
     let alive = true;
@@ -106,7 +106,7 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
       <div>
         <h2 className="text-xl font-semibold">Simulated result</h2>
         <p className="mt-1 text-sm text-slate-600">
-          The after photo is made automatically for 3, 6, 9 and 12 months, using the hairline traced on this picture. Drag the slider to compare.
+          3, 6, 9 and 12 months are built from this graft plan. Fewer grafts stay thinner at every month. Drag the slider to compare.
         </p>
       </div>
 
@@ -202,10 +202,10 @@ export function StepResults({ onBack, onRestart }: { onBack: () => void; onResta
             <Label>Growth timeline</Label>
             <ol className="space-y-2 text-sm text-slate-600">
               <li><b className="text-slate-800">0–1 mo:</b> healing; transplanted hairs shed (normal).</li>
-              <li><b className="text-slate-800">3 mo:</b> first new growth appears.</li>
-              <li><b className="text-slate-800">6 mo:</b> around half the grafts growing.</li>
-              <li><b className="text-slate-800">9 mo:</b> most grafts growing, thickening.</li>
-              <li><b className="text-slate-800">12–18 mo:</b> final density and texture.</li>
+              <li><b className="text-slate-800">3 mo:</b> about 20% of the final look. Mostly scalp, with the first short hairs.</li>
+              <li><b className="text-slate-800">6 mo:</b> about half the final density. The hairline is there, but see-through.</li>
+              <li><b className="text-slate-800">9 mo:</b> about 80%. Still a little lighter than the finished result.</li>
+              <li><b className="text-slate-800">12 mo:</b> the density this graft count can support. More grafts look fuller. Crown can keep thickening after this.</li>
             </ol>
           </Card>
 
